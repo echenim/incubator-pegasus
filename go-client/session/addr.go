@@ -31,26 +31,42 @@ func ResolveMetaAddr(addrs []string) ([]string, error) {
 		return nil, fmt.Errorf("meta server list should not be empty")
 	}
 
-	// case#1: all addresses are in TCP4 already
-	allTCPAddr := true
+	var resolvedAddrs []string
+	var invalidAddrs []string
+
+	// Loop through each address in the input list
 	for _, addr := range addrs {
-		_, err := net.ResolveTCPAddr("tcp4", addr)
-		if err != nil {
-			allTCPAddr = false
-			break
-		}
-	}
-	if allTCPAddr {
-		return addrs, nil
-	}
-
-	// case#2: address is a hostname
-	if len(addrs) == 1 {
-		actualAddrs, err := net.LookupHost(addrs[0])
+		// Try to resolve the address as a TCP4 address
+		tcpAddr, err := net.ResolveTCPAddr("tcp4", addr)
 		if err == nil {
-			return actualAddrs, nil
+			// If successful, append the resolved TCP address to the list
+			resolvedAddrs = append(resolvedAddrs, tcpAddr.String())
+			continue
 		}
+
+		// If TCP4 resolution fails, try to resolve the address as a hostname
+		hostAddrs, err := net.LookupHost(addr)
+		if err == nil {
+			for _, hostAddr := range hostAddrs {
+				// Resolve each resolved hostname IP as a TCP4 address
+				tcpAddr, err := net.ResolveTCPAddr("tcp4", fmt.Sprintf("%s:0", hostAddr))
+				if err == nil {
+					// Append the resolved IP address to the list
+					resolvedAddrs = append(resolvedAddrs, tcpAddr.IP.String())
+				}
+			}
+			continue
+		}
+
+		// If both TCP4 and hostname resolution fail, add the address to the list of invalid addresses
+		invalidAddrs = append(invalidAddrs, addr)
 	}
 
-	return nil, fmt.Errorf("illegal meta addresses: %s", addrs)
+	// If no addresses could be resolved, return an error with the list of invalid addresses
+	if len(resolvedAddrs) == 0 {
+		return nil, fmt.Errorf("no valid TCP4 addresses or resolvable hostnames found: %v", invalidAddrs)
+	}
+
+	// Return the list of resolved addresses
+	return resolvedAddrs, nil
 }
