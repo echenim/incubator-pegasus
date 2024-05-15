@@ -24,6 +24,23 @@ import (
 	"net"
 )
 
+// Resolver interface allows mocking net functions
+type Resolver interface {
+	ResolveTCPAddr(network, address string) (*net.TCPAddr, error)
+	LookupHost(host string) ([]string, error)
+}
+
+// DefaultResolver uses the net package functions
+type DefaultResolver struct{}
+
+func (r *DefaultResolver) ResolveTCPAddr(network, address string) (*net.TCPAddr, error) {
+	return net.ResolveTCPAddr(network, address)
+}
+
+func (r *DefaultResolver) LookupHost(host string) ([]string, error) {
+	return net.LookupHost(host)
+}
+
 // ResolveMetaAddr into a list of TCP4 addresses. Error is returned if the given `addrs` are not either
 // a list of valid TCP4 addresses, or a resolvable hostname.
 func ResolveMetaAddr(addrs []string) ([]string, error) {
